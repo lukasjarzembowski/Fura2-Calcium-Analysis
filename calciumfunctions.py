@@ -11,17 +11,17 @@ def importrawdata(folderpath, runtime=None, dropcolumns=None):
     for file in files:
         filepath = folderpath + file
         openfile = pd.read_excel(filepath)
-        
+
         if dropcolumns is not None:
             openfile = openfile.drop(columns=[dropcolumns])
-            
+
         if runtime is not None:
             openfile = openfile.truncate(after=runtime, axis=0)
-        
+
         openfile.columns = [str(cols) for cols in range(len(openfile.columns))]
         openfile = openfile.add_prefix(file.replace('xlsx',''))
         targetdf = pd.concat([targetdf, openfile], axis=1)
-        
+
     print(len(files), "files have been successfully imported from", folderpath, "into a DataFrame with following shape (rows x columns):", targetdf.shape)
     return targetdf
 
@@ -34,9 +34,9 @@ def filterdata(inputdf, threshold=None):
         mask = inputdf.head(1).squeeze() < threshold
     if threshold is not None:
         mask = inputdf.head(1).squeeze() < threshold
-  
+
     filtered = inputdf.loc[:,mask]
-    
+
     lengthinput = len(inputdf.columns)
     lengthfiltered = len(filtered.columns)
     delta_len = lengthinput - lengthfiltered
@@ -53,16 +53,16 @@ def measurementavgs(filtered_df, path):
     files = os.listdir(path)
     #create a new dataframe that stores all averaged data
     avg = pd.DataFrame()
-    #for every file in raw folder search for 
+    #for every file in raw folder search for
     #corresponding column in filtered data
     for file in files:
         #remove the .xlsx ending from filename to find the right column
         filename = file.replace('.xlsx','')
-        #store mean of rows at each timepoint for all cells the measurement 
+        #store mean of rows at each timepoint for all cells the measurement
         mean = filtered_df.filter(regex=filename).mean(axis=1)
         #attached the calculated mean dataframe to the avg dataframe
         avg = pd.concat([avg,mean], axis=1)
-        
+
 
     #make a list of filenames without the .xlsx ending to change column names in avg
     cleanednames = []
@@ -70,7 +70,7 @@ def measurementavgs(filtered_df, path):
         file = str(file.replace(".xlsx", ""))
         cleanednames.append(file)
     avg.columns = cleanednames
-   
+
     print('Averages single measurements succesfully calculated!')
 
     return avg
@@ -88,21 +88,21 @@ def calc_totalmean(inputdf, avgs=None):
         sdofavgs = pd.DataFrame(sdofavgs)
         avgofavgs.columns = ['avgs_mean']
         sdofavgs.columns = ['avgs_sd']
-        avgstats = pd.concat([avgofavgs,sdofavgs], axis=1)  
-    
+        avgstats = pd.concat([avgofavgs,sdofavgs], axis=1)
+
         totalmeandf = pd.concat([totalmeandf,avgstats], axis=1)
         return totalmeandf
-    
+
     else:
         return totalmeandf
-    
+
     print('Means succesfully calculated!')
 
 #change inputdf to a new df that gets returned
 def calc_mean(inputdf,start,stop):
     inputdf = inputdf.iloc[start:stop,:].mean(axis=0)
     return inputdf
-    
+
 def calc_max(inputdf,start,stop):
     inputdf = inputdf.iloc[start:stop,:].max(axis=0)
     return inputdf
@@ -110,10 +110,10 @@ def calc_max(inputdf,start,stop):
 def calc_slope(inputdf,start,stop):
     diff = [start, stop] #start and stop of the frames to fit in between
     diff = diff[1] - diff[0] #differences = length of the frames where to fit
-    
+
     x=[] #to do a line fit you need corresponding x values = the number of frames you want to fit your data
     for i in range(diff):
-        x.append(i) #creates an array/list that contains as many numbers from 0 till n as needed for the fit as x axis   
+        x.append(i) #creates an array/list that contains as many numbers from 0 till n as needed for the fit as x axis
     slopes = []
     rsqrd = []
     influx = inputdf.iloc[start:stop,:]
@@ -130,39 +130,39 @@ def ca_analysis(filtereddf, parameters_dict, avgs=None):
     if avgs is not None:
         for i in avgs:
             filtereddf = filtereddf.drop(columns=[i])
-  
+
     for key in parameters_dict.keys():
         templist = parameters_dict[key]
-        
+
         if len(templist) == 3:
-            
+
             if templist[2] == 'mean':
                 tempmeandf = pd.DataFrame()
                 tempmeandf[key] = calc_mean(filtereddf,templist[0], templist[1])
                 tempdf = pd.concat([tempdf,tempmeandf], axis=1)
-                
+
             elif templist[2] == 'max':
                 tempmaxdf = pd.DataFrame()
                 tempmaxdf[key] = calc_max(filtereddf,templist[0],templist[1])
                 tempdf = pd.concat([tempdf, tempmaxdf], axis=1)
-                
+
             elif templist[2] == 'delta':
                 tempdf[key] = tempdf[templist[0]] - tempdf[templist[1]]
-                
+
             elif templist[2] == 'slope':
                 slopes, rvalues = calc_slope(filtereddf,templist[0],templist[1])
                 tempdf['slope'] = slopes
                 tempdf['rsqrd'] = rvalues
-                
+
             else:
                 print('Please make sure your parameter ' + str(key) + ' ranges are marked with "mean", "max", "slope" or "delta"')
-    
-        
+
+
         else:
             print('Please make sure your parameter ' + str(key) + ' has following format: "parameter": [frame number start, frame number stop, "operation"] or: "parameter": [parameter b, parameter a, "delta"] when calculating deltas = b-a')
-    
+
     print('Kinetics succesfully calculated!')
-        
+
     return tempdf
 
 def loaddata(data1, data2, parameter, name1, name2, rsmpls=None):
@@ -190,4 +190,21 @@ def normalize_data(inputdf):
     for column in column_list:
         first_value = normalizeddf[column].iloc[0]
         normalizeddf[column] = normalizeddf[column].apply(lambda x: x/first_value)
-    return normalizeddf    
+    return normalizeddf
+
+# select all rows in a column that are higher than a set threshold as responders
+# and those that are below that threshold as non_responders. If no threshold is passed,
+# the standard deviation of all values will be used as lower threshold
+# added 2019-01-07
+
+def get_responders(inputdf, column_name, threshold = None):
+
+    if threshold is None:
+        std = inputdf[column_name].std()
+        mask = inputdf[column_name].squeeze() > std
+    if threshold is not None:
+        mask = inputdf[column_name].squeeze() > threshold
+
+    responders = inputdf[column_name].loc[mask]
+    non_responders = inputdf[column_name].loc[~mask]
+    return responders, non_responders
