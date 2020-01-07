@@ -5,7 +5,7 @@ import dabest
 
 
 def importrawdata(folderpath, runtime=None, dropcolumns=None):
-    #clear target dataframe to really be empty
+    #declare an empty dataframe
     targetdf = pd.DataFrame()
     files = os.listdir(folderpath)
     for file in files:
