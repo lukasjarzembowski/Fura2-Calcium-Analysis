@@ -192,12 +192,12 @@ def normalize_data(inputdf):
         normalizeddf[column] = normalizeddf[column].apply(lambda x: x/first_value)
     return normalizeddf
 
+
+def get_responders(inputdf, column_name, threshold = None):
 # select all rows in a column that are higher than a set threshold as responders
 # and those that are below that threshold as non_responders. If no threshold is passed,
 # the standard deviation of all values will be used as lower threshold
 # added 2019-01-07
-
-def get_responders(inputdf, column_name, threshold = None):
 
     if threshold is None:
         std = inputdf[column_name].std()
