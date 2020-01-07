@@ -199,12 +199,24 @@ def get_responders(inputdf, column_name, threshold = None):
 # the standard deviation of all values will be used as lower threshold
 # added 2019-01-07
 
+def get_responders(inputdf, column_name, threshold = None):
+
     if threshold is None:
         std = inputdf[column_name].std()
         mask = inputdf[column_name].squeeze() > std
+        print("The threshold used:", str(std))
+
     if threshold is not None:
         mask = inputdf[column_name].squeeze() > threshold
+        print("The threshold used:", str(threshold))
 
     responders = inputdf[column_name].loc[mask]
     non_responders = inputdf[column_name].loc[~mask]
+
+    print("Total number of cells", str(len(inputdf.index)))
+    print("Number of responders:", str(len(responders.index)))
+    print("Number of non-responders:", str(len(non_responders.index)))
+    print("Percentage of responders:", str(len(responders.index)/len(inputdf.index)*100))
+    print('\n')
+
     return responders, non_responders
