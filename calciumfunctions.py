@@ -199,8 +199,6 @@ def get_responders(inputdf, column_name, threshold = None):
 # the standard deviation of all values will be used as lower threshold
 # added 2019-01-07
 
-def get_responders(inputdf, column_name, threshold = None):
-
     if threshold is None:
         std = inputdf[column_name].std()
         mask = inputdf[column_name].squeeze() > std
