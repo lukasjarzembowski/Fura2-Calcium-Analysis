@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from scipy import stats
 import dabest
-import glob
+
 
 def importrawdata(folderpath, runtime=None, dropcolumns=None):
     #declare an empty dataframe and list for filenames
