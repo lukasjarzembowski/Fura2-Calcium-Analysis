@@ -2,14 +2,21 @@ import os
 import pandas as pd
 from scipy import stats
 import dabest
-
+import glob
 
 def importrawdata(folderpath, runtime=None, dropcolumns=None):
-    #declare an empty dataframe
+    #declare an empty dataframe and list for filenames
     targetdf = pd.DataFrame()
-    files = os.listdir(folderpath)
+    files = []
+
+    for entry in os.scandir(folderpath):
+        if entry.name.endswith(".xlsx"):
+            files.append(entry)
+        else:
+            pass
+
     for file in files:
-        filepath = folderpath + file
+        filepath = folderpath + file.name
         openfile = pd.read_excel(filepath)
 
         if dropcolumns is not None:
@@ -19,7 +26,7 @@ def importrawdata(folderpath, runtime=None, dropcolumns=None):
             openfile = openfile.truncate(after=runtime, axis=0)
 
         openfile.columns = [str(cols) for cols in range(len(openfile.columns))]
-        openfile = openfile.add_prefix(file.replace('xlsx',''))
+        openfile = openfile.add_prefix(file.name.replace('xlsx',''))
         targetdf = pd.concat([targetdf, openfile], axis=1)
 
     print(len(files), "files have been successfully imported from", folderpath, "into a DataFrame with following shape (rows x columns):", targetdf.shape)
@@ -197,7 +204,7 @@ def get_responders(inputdf, column_name, threshold = None):
 # select all rows in a column that are higher than a set threshold as responders
 # and those that are below that threshold as non_responders. If no threshold is passed,
 # the standard deviation of all values will be used as lower threshold
-# added 2019-01-07
+# added 2020-01-07
 
     if threshold is None:
         std = inputdf[column_name].std()
