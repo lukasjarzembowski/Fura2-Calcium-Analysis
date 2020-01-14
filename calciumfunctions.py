@@ -3,17 +3,18 @@ import pandas as pd
 from scipy import stats
 import dabest
 
-
-def importrawdata(folderpath, runtime=None, dropcolumns=None, folder=None, name=None):
+def importrawdata(folderpath, runtime=None, dropcolumns=None, folder=True, name=None):
     #declare an empty dataframe and list for filenames
     targetdf = pd.DataFrame()
     files = []
+
 
     if folder is False:
         if folderpath.endswith(".xlsx"):
             files.append(folderpath)
         else:
             print("File type is currently not supported (.xlsx only)")
+
     if folder is True:
         for entry in os.scandir(folderpath):
             if entry.name.endswith(".xlsx"):
