@@ -230,9 +230,12 @@ def get_responders(inputdf, column_name, threshold = None):
 # and those that are below that threshold as non_responders. If no threshold is passed,
 # the standard deviation of all values will be used as lower threshold
 # added 2020-01-07
+    std = inputdf[column_name].std()
+    mean = inputdf[column_name].mean()
 
+    print("Mean:", str(mean))
+    print("SD:", str(std))
     if threshold is None:
-        std = inputdf[column_name].std()
         mask = inputdf[column_name].squeeze() > std
         print("The threshold used:", str(std))
 
