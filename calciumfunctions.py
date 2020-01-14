@@ -4,20 +4,29 @@ from scipy import stats
 import dabest
 
 
-def importrawdata(folderpath, runtime=None, dropcolumns=None):
+def importrawdata(folderpath, runtime=None, dropcolumns=None, folder=None, name=None):
     #declare an empty dataframe and list for filenames
     targetdf = pd.DataFrame()
     files = []
 
-    for entry in os.scandir(folderpath):
-        if entry.name.endswith(".xlsx"):
-            files.append(entry)
+    if folder is False:
+        if folderpath.endswith(".xlsx"):
+            files.append(folderpath)
         else:
-            pass
+            print("File type is currently not supported (.xlsx only)")
+    if folder is True:
+        for entry in os.scandir(folderpath):
+            if entry.name.endswith(".xlsx"):
+                files.append(entry)
+            else:
+                pass
 
     for file in files:
-        filepath = folderpath + file.name
-        openfile = pd.read_excel(filepath)
+        if folder is False:
+            openfile = pd.read_excel(folderpath)
+        elif folder is True:
+            filepath = folderpath + file.name
+            openfile = pd.read_excel(filepath)
 
         if dropcolumns is not None:
             openfile = openfile.drop(columns=[dropcolumns])
@@ -25,9 +34,20 @@ def importrawdata(folderpath, runtime=None, dropcolumns=None):
         if runtime is not None:
             openfile = openfile.truncate(after=runtime, axis=0)
 
-        openfile.columns = [str(cols) for cols in range(len(openfile.columns))]
-        openfile = openfile.add_prefix(file.name.replace('xlsx',''))
+        if folder is False:
+            openfile.columns = [str(cols) for cols in range(len(openfile.columns))]
+            openfile = openfile.add_prefix(file.replace('xlsx',''))
+
+        if folder is True:
+            openfile.columns = [str(cols) for cols in range(len(openfile.columns))]
+            openfile = openfile.add_prefix(file.name.replace('xlsx',''))
+
         targetdf = pd.concat([targetdf, openfile], axis=1)
+
+    if name is not None:
+        targetdf.name = str(name)
+    if name is None:
+        targetdf.name = "none"
 
     print(len(files), "files have been successfully imported from", folderpath, "into a DataFrame with following shape (rows x columns):", targetdf.shape)
     return targetdf
@@ -47,6 +67,9 @@ def filterdata(inputdf, threshold=None):
     lengthinput = len(inputdf.columns)
     lengthfiltered = len(filtered.columns)
     delta_len = lengthinput - lengthfiltered
+
+    if inputdf.name is not "none":
+        print('Dataframe:',  str(inputdf.name))
     print('Initital Mean: ' + str(initialmean) + '. Initial SD: ' + str(initialsd))
     print('Threshold: ' + str(threshold))
     print('Dataframe was filtered')
@@ -54,6 +77,7 @@ def filterdata(inputdf, threshold=None):
     print('\n')
 
     return filtered
+
 
 def measurementavgs(filtered_df, path):
     #get list of all filenames
