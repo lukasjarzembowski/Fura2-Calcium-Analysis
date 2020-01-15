@@ -47,8 +47,6 @@ def importrawdata(folderpath, runtime=None, dropcolumns=None, folder=True, name=
 
     if name is not None:
         targetdf.name = str(name)
-    if name is None:
-        targetdf.name = "none"
 
     print(len(files), "files have been successfully imported from", folderpath, "into a DataFrame with following shape (rows x columns):", targetdf.shape)
     return targetdf
@@ -69,8 +67,10 @@ def filterdata(inputdf, threshold=None):
     lengthfiltered = len(filtered.columns)
     delta_len = lengthinput - lengthfiltered
 
-    if inputdf.name is not "none":
+    try:
         print('Dataframe:',  str(inputdf.name))
+    except AttributeError:
+        print('Dataframe is unnamed')
     print('Initital Mean: ' + str(initialmean) + '. Initial SD: ' + str(initialsd))
     print('Threshold: ' + str(threshold))
     print('Dataframe was filtered')
