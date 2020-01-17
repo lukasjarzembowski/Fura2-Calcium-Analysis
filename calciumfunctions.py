@@ -111,16 +111,23 @@ def calc_totalmean(inputdf, avgs=None):
     totalmeandf=pd.DataFrame()
     totalmeans = inputdf.mean(axis=1)
     totalsd = inputdf.std(axis=1)
-    totalmeandf = pd.concat([totalmeans,totalsd], axis=1)
-    totalmeandf.columns = ['total_mean','total_sd']
+    totalSEM = inputdf.sem(axis=1)
+    totalnumber = len(inputdf.columns)
+    totalmeandf = pd.concat([totalmeans,totalsd,totalSEM], axis=1)
+    totalmeandf.columns = ['total_mean','total_sd','total_SEM']
+    totalmeandf['number of cells'] = ""
+    totalmeandf.at[0,'number of cells']= totalnumber
     if avgs is not None:
         avgofavgs = avgs.mean(axis=1)
         sdofavgs = avgs.std(axis=1)
+        semofavgs = avgs.sem(axis=1)
         avgofavgs = pd.DataFrame(avgofavgs)
         sdofavgs = pd.DataFrame(sdofavgs)
+        semofavgs = pd.DataFrame(semofavgs)
         avgofavgs.columns = ['avgs_mean']
         sdofavgs.columns = ['avgs_sd']
-        avgstats = pd.concat([avgofavgs,sdofavgs], axis=1)
+        semofavgs.columns = ['avgs_sem']
+        avgstats = pd.concat([avgofavgs,sdofavgs,semofavgs], axis=1)
 
         totalmeandf = pd.concat([totalmeandf,avgstats], axis=1)
         return totalmeandf
