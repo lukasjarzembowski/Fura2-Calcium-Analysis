@@ -163,6 +163,18 @@ def calc_slope(inputdf,start,stop):
         rsqrd.append(r)
     return slopes, rsqrd
 
+def calc_auc(filtereddf, start, stop):
+#calculate the area under the curve using the sklearn metrics.auc function
+#for every column between the specified timepoints = rows
+#added 2020-04-17, also added to ca_analysis function
+    column_list = list(filtereddf)
+    x = np.arange(0,stop-start)
+    auc_list = []
+    for i in range(0,len(filtereddf.columns)):
+        auc = metrics.auc(x,filtereddf.iloc[start:stop,i])
+        auc_list.append(auc)
+    return auc_list
+
 def ca_analysis(filtereddf, parameters_dict, avgs=None):
     results = pd.DataFrame()
     tempdf = pd.DataFrame()
@@ -193,8 +205,11 @@ def ca_analysis(filtereddf, parameters_dict, avgs=None):
                 tempdf['slope'] = slopes
                 tempdf['rsqrd'] = rvalues
 
+            elif templist[2] == 'auc':
+                tempdf['auc'] = calc_auc(filtereddf, templist[0], templist[1])
+
             else:
-                print('Please make sure your parameter ' + str(key) + ' ranges are marked with "mean", "max", "slope" or "delta"')
+                print('Please make sure your parameter ' + str(key) + ' ranges are marked with "mean", "max", "slope", "auc" or "delta"')
 
 
         else:
