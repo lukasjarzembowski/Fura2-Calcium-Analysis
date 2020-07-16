@@ -211,7 +211,6 @@ def ca_analysis(filtereddf, parameters_dict, avgs=None):
             else:
                 print('Please make sure your parameter ' + str(key) + ' ranges are marked with "mean", "max", "slope", "auc" or "delta"')
 
-
         else:
             print('Please make sure your parameter ' + str(key) + ' has following format: "parameter": [frame number start, frame number stop, "operation"] or: "parameter": [parameter b, parameter a, "delta"] when calculating deltas = b-a')
 
@@ -275,3 +274,188 @@ def get_responders(inputdf, column_name, threshold = None):
     print('\n')
 
     return responders, non_responders
+
+def intensity_dataframe(timelapse_image,mask,name=None):
+    from skimage import measure
+    import pandas as pd
+
+    #create empty dataframe
+    intensity_df = pd.DataFrame()
+
+    #count the number of unique ROIs and remove the background ROI 0
+    rois = np.unique(mask).tolist()[1:]
+    #create a list with numbered column name and use name argument as prefix if given
+    if name is not None:
+        col_list = [str(name)+'_roi_%d' % x for x in range(1,len(rois)+1)]
+    else:
+        col_list = ['roi_%s' %  x for x in range(1,len(rois)+1)]
+
+    #go through every single frame of the timelapse image
+    for i in range(len(timelapse_image)):
+        #for each frame clear the list of intensities
+        intensity_list = []
+        #save all region props in a list for every ROI in this particular frame
+        props = skimage.measure.regionprops(mask, intensity_image=timelapse_image[i])
+
+        #get the mean intensity of every prop and save it to the intensity list
+        for j in range(len(props)):
+            intensity = props[j].mean_intensity
+            intensity_list.append(intensity)
+
+        #for each frame save the list of intensities as new row in the dataframe
+        intensity_df = intensity_df.append(pd.DataFrame([intensity_list]))
+
+    print("calculation of intensites for %s frames completed" % str(len(timelapse_image)))
+
+    #add the column names to the dataframe
+    intensity_df.columns = col_list
+
+    #reset the index and let it start from 1
+    intensity_df.index = np.arange(1, len(intensity_df)+1)
+
+    return intensity_df
+
+def intensity_dataframe_long(timelapse_image,mask,measurement):
+    from skimage import measure
+    import pandas as pd
+
+    #create empty dataframe
+    intensity_df = pd.DataFrame()
+
+    #go through every single frame of the timelapse image
+    for i in range(len(timelapse_image)):
+        #for each frame clear the list of intensities
+        intensity_list = []
+        #save all region props in a list for every ROI in this particular frame
+        props = skimage.measure.regionprops(mask, intensity_image=timelapse_image[i])
+
+        #get the mean intensity of every prop and save it to the intensity list
+        for j in range(len(props)):
+            intensity = props[j].mean_intensity
+            intensity_list.append(intensity)
+        #
+        #for each frame save the list of intensities as new row in the dataframe
+        intensity_df = intensity_df.append(pd.DataFrame([intensity_list]))
+
+    print("calculation of intensites for %s frames completed" % str(len(timelapse_image)))
+
+    #add the column names to the dataframe
+    intensity_df["timepoint"] = np.arange(len(timelapse_image))
+    intensity_df["measurement"] = measurement
+    #reset the index and let it start from 1
+    intensity_df.index = np.arange(1, len(intensity_df)+1)
+    intensity_df = pd.melt(intensity_df, id_vars=["timepoint", "measurement"], value_vars=intensity_df.columns[:-2], var_name="roi")
+    intensity_df["roi"] += 1
+
+    return intensity_df
+
+def filterdata_melted(inputdf, threshold=None):
+
+    initialmean = inputdf.loc[inputdf["timepoint"] == 0].mean().array[-1]
+    initialsd = inputdf.loc[inputdf["timepoint"] == 0].std().array[-1]
+    if threshold is None:
+        threshold = initialmean + initialsd
+        preactivated = inputdf.loc[(inputdf['timepoint'] == 0) & (inputdf['value'] >= threshold)]
+    if threshold is not None:
+        preactivated = inputdf.loc[(inputdf['timepoint'] == 0) & (inputdf['value'] >= threshold)]
+
+    filtereddf = inputdf.loc[~inputdf['roi'].isin(preactivated["roi"].array)]
+
+    lengthinput = len(inputdf["roi"].unique())
+    lengthfiltered = len(filtereddf["roi"].unique())
+    delta_len = lengthinput - lengthfiltered
+
+    try:
+        print('Dataframe:',  str(inputdf.name))
+    except AttributeError:
+        print('Dataframe is unnamed')
+    print('Initital Mean: ' + str(initialmean) + '. Initial SD: ' + str(initialsd))
+    print('Threshold: ' + str(threshold))
+    print('Dataframe was filtered')
+    print(str(delta_len) + ' cells were removed')
+    print('\n')
+
+    return filtereddf
+
+
+
+def calc_mean_melted(inputdf,start,stop):
+    meandf = inputdf.loc[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)].groupby(["roi","measurement"]).agg(["mean"]).drop("timepoint",axis = 1)
+    meandf.columns = ["value"]
+    return meandf
+
+def calc_max_melted(inputdf,start,stop):
+    maxdf = inputdf.loc[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)].groupby(["roi","measurement"]).agg(["max"]).drop("timepoint",axis = 1)
+    maxdf.columns = ["value"]
+    return maxdf
+
+def calc_slope_melted(inputdf,start,stop):
+    from scipy.stats import linregress
+    subsectiondf = inputdf.loc[(inputdf['timepoint'] >= 199) & (inputdf['timepoint'] <= 204)]
+    slope = subsectiondf.groupby(["roi","measurement"]).apply(lambda v: linregress(v.timepoint, v.value)[0])
+    rsqrd = subsectiondf.groupby(["roi","measurement"]).apply(lambda v: linregress(v.timepoint, v.value)[2])**2
+    slopedf = pd.DataFrame(slope)
+    rsqrddf = pd.DataFrame(rsqrd)
+    slopedf.columns = ["value"]
+    rsqrddf.columns = ["value"]
+    return slopedf, rsqrddf
+
+def calc_auc_melted(inputdf,start,stop):
+    from sklearn import metrics
+    subsectiondf = inputdf.loc[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)]
+    return subsectiondf.groupby(["roi","measurement"]).apply(lambda v: metrics.auc(v.timepoint, v.value)).drop("timepoint",axis = 1)
+
+
+
+def ca_analysis_long(filtereddf, parameters_dict, name=None):
+    resultsdf = pd.DataFrame()
+    result_dict={}
+
+    for key in parameters_dict.keys():
+        templist = parameters_dict[key]
+
+        if len(templist) == 3:
+
+            if templist[2] == 'mean':
+                tempmeandf = calc_mean_melted(filtereddf,templist[0], templist[1])
+                tempmeandf["parameter"]=key
+                result_dict[key] = tempmeandf
+
+            elif templist[2] == 'max':
+                tempmaxdf = calc_max_melted(filtereddf,templist[0],templist[1])
+                tempmaxdf["parameter"]=key
+                result_dict[key] = tempmaxdf
+
+            elif templist[2] == 'delta':
+                delta = result_dict[templist[0]]["value"] - result_dict[templist[1]]["value"]
+                delta = pd.DataFrame(delta)
+                delta["parameter"] = key
+                result_dict[key] = delta
+
+            elif templist[2] == 'slope':
+                slopes, rsqrd = calc_slope_melted(filtereddf,templist[0],templist[1])
+                slopes["parameter"]=key
+                rsqrd["parameter"]="r_squared"
+                result_dict[key] = slopes
+                result_dict[key+"_rsquared"] = rsqrd
+
+            elif templist[2] == 'auc':
+                tempaucdf = calc_auc_melted(filtereddf, templist[0], templist[1])
+                tempaucdf["parameter"]=key
+                result_dict[key] = tempaucdf
+            else:
+                print('Please make sure your parameter ' + str(key) + ' ranges are marked with "mean", "max", "slope", "auc" or "delta"')
+
+        else:
+            print('Please make sure your parameter ' + str(key) + ' has following format: "parameter": [frame number start, frame number stop, "operation"] or: "parameter": [parameter b, parameter a, "delta"] when calculating deltas = b-a')
+
+
+    for key in result_dict.keys():
+        resultsdf = pd.concat([resultsdf,result_dict[key]])
+
+    if name is not None:
+        resultsdf["group"]=name
+
+    resultsdf.reset_index()
+    print('Kinetics succesfully calculated!')
+    return resultsdf
