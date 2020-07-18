@@ -577,7 +577,7 @@ def filterdata_long_dask(inputdf, threshold=None, nr_of_partitions=None):
     return filtereddf, pre_activated
 
 
-def total_means_long(traces_list,kinetics_list):
+def total_means_long(traces_list,kinetics_list,output_total=False):
 
     combined_traces = pd.DataFrame()
     combined_kinetics = pd.DataFrame()
@@ -601,4 +601,11 @@ def total_means_long(traces_list,kinetics_list):
         combined_traces.reset_index()
         combined_kinetics.reset_index()
 
-    return combined_traces, combined_kinetics
+    if output_total==False:
+          return combined_traces, combined_kinetics
+
+    if output_total == True:
+        total_traces = pd.concat(traces_list, axis=0).reset_index()
+        total_kinetics = pd.concat(kinetics_list,axis=0).reset_index()
+
+        return combined_traces, combined_kinetics,total_traces,total_kinetics
