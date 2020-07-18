@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from scipy import stats
 import dabest
+import dask.dataframe as dd
 
 def importrawdata(folderpath, runtime=None, dropcolumns=None, folder=True, name=None):
     #declare an empty dataframe and list for filenames
@@ -277,6 +278,8 @@ def get_responders(inputdf, column_name, threshold = None):
 
 def intensity_dataframe(timelapse_image,mask,name=None):
     from skimage import measure
+    from skimage.measure import regionprops
+    import numpy as np
     import pandas as pd
 
     #create empty dataframe
@@ -295,7 +298,7 @@ def intensity_dataframe(timelapse_image,mask,name=None):
         #for each frame clear the list of intensities
         intensity_list = []
         #save all region props in a list for every ROI in this particular frame
-        props = skimage.measure.regionprops(mask, intensity_image=timelapse_image[i])
+        props = regionprops(mask, intensity_image=timelapse_image[i])
 
         #get the mean intensity of every prop and save it to the intensity list
         for j in range(len(props)):
@@ -315,8 +318,10 @@ def intensity_dataframe(timelapse_image,mask,name=None):
 
     return intensity_df
 
-def intensity_dataframe_long(timelapse_image,mask,measurement):
+def intensity_dataframe_long(timelapse_image,mask,measurement,name):
     from skimage import measure
+    from skimage.measure import regionprops
+    import numpy as np
     import pandas as pd
 
     #create empty dataframe
@@ -327,7 +332,7 @@ def intensity_dataframe_long(timelapse_image,mask,measurement):
         #for each frame clear the list of intensities
         intensity_list = []
         #save all region props in a list for every ROI in this particular frame
-        props = skimage.measure.regionprops(mask, intensity_image=timelapse_image[i])
+        props = regionprops(mask, intensity_image=timelapse_image[i])
 
         #get the mean intensity of every prop and save it to the intensity list
         for j in range(len(props)):
@@ -347,23 +352,36 @@ def intensity_dataframe_long(timelapse_image,mask,measurement):
     intensity_df = pd.melt(intensity_df, id_vars=["timepoint", "measurement"], value_vars=intensity_df.columns[:-2], var_name="roi")
     intensity_df["roi"] += 1
 
+    intensity_df.name = str(name)
+    intensity_df["group"]= name
     return intensity_df
 
-def filterdata_melted(inputdf, threshold=None):
-
+def filterdata_long(inputdf, threshold=None):
+    #this function was implemented with help by Jose A. Jimenez
+    #https://stackoverflow.com/questions/62957110/pandas-selecting-multiple-rows-based-on-column-pair/
     initialmean = inputdf.loc[inputdf["timepoint"] == 0].mean().array[-1]
     initialsd = inputdf.loc[inputdf["timepoint"] == 0].std().array[-1]
+
     if threshold is None:
         threshold = initialmean + initialsd
-        preactivated = inputdf.loc[(inputdf['timepoint'] == 0) & (inputdf['value'] >= threshold)]
+        pre_activated_t0 = inputdf[(inputdf['timepoint'] == 0) & (inputdf['value'] > threshold)]
     if threshold is not None:
-        preactivated = inputdf.loc[(inputdf['timepoint'] == 0) & (inputdf['value'] >= threshold)]
+        pre_activated_t0 = inputdf[(inputdf['timepoint'] == 0) & (inputdf['value'] > threshold)]
 
-    filtereddf = inputdf.loc[~inputdf['roi'].isin(preactivated["roi"].array)]
+    pre_activated = inputdf.merge(pre_activated_t0[["measurement", "roi"]], how="inner", on=["measurement", "roi"])
+    filtereddf = inputdf.merge(
+    pre_activated,
+    how="left",
+    on=["timepoint", "measurement", "roi", "value"],
+    )
+    filtereddf = filtereddf[pd.isna(filtereddf["group_y"])]
 
-    lengthinput = len(inputdf["roi"].unique())
-    lengthfiltered = len(filtereddf["roi"].unique())
-    delta_len = lengthinput - lengthfiltered
+    filtereddf.drop("group_y", axis=1, inplace=True)
+    filtereddf.columns = list(inputdf.columns)
+
+    length_input = len(inputdf[inputdf["timepoint"]==0])
+    length_filtered = len(filtereddf[filtereddf["timepoint"]==0])
+    delta = length_input - length_filtered
 
     try:
         print('Dataframe:',  str(inputdf.name))
@@ -372,26 +390,27 @@ def filterdata_melted(inputdf, threshold=None):
     print('Initital Mean: ' + str(initialmean) + '. Initial SD: ' + str(initialsd))
     print('Threshold: ' + str(threshold))
     print('Dataframe was filtered')
-    print(str(delta_len) + ' cells were removed')
+    print('Total cells: ' + str(length_input))
+    print(str(delta) + ' cells were removed')
     print('\n')
 
-    return filtereddf
+    return filtereddf, pre_activated
 
 
 
 def calc_mean_melted(inputdf,start,stop):
-    meandf = inputdf.loc[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)].groupby(["roi","measurement"]).agg(["mean"]).drop("timepoint",axis = 1)
+    meandf = inputdf[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)].groupby(["roi","measurement"]).agg(["mean"]).drop(["timepoint"],axis = 1)
     meandf.columns = ["value"]
     return meandf
 
 def calc_max_melted(inputdf,start,stop):
-    maxdf = inputdf.loc[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)].groupby(["roi","measurement"]).agg(["max"]).drop("timepoint",axis = 1)
-    maxdf.columns = ["value"]
+    maxdf = inputdf[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)].groupby(["roi","measurement"]).agg(["max"]).drop(["timepoint"],axis = 1)
+    maxdf.columns = ["value","group"]
     return maxdf
 
 def calc_slope_melted(inputdf,start,stop):
     from scipy.stats import linregress
-    subsectiondf = inputdf.loc[(inputdf['timepoint'] >= 199) & (inputdf['timepoint'] <= 204)]
+    subsectiondf = inputdf[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)]
     slope = subsectiondf.groupby(["roi","measurement"]).apply(lambda v: linregress(v.timepoint, v.value)[0])
     rsqrd = subsectiondf.groupby(["roi","measurement"]).apply(lambda v: linregress(v.timepoint, v.value)[2])**2
     slopedf = pd.DataFrame(slope)
@@ -403,11 +422,11 @@ def calc_slope_melted(inputdf,start,stop):
 def calc_auc_melted(inputdf,start,stop):
     from sklearn import metrics
     subsectiondf = inputdf.loc[(inputdf['timepoint'] >= start) & (inputdf['timepoint'] <= stop)]
-    return subsectiondf.groupby(["roi","measurement"]).apply(lambda v: metrics.auc(v.timepoint, v.value)).drop("timepoint",axis = 1)
+    return subsectiondf.groupby(["roi","measurement","group"]).apply(lambda v: metrics.auc(v.timepoint, v.value)).drop(["timepoint","group"],axis = 1)
 
 
 
-def ca_analysis_long(filtereddf, parameters_dict, name=None):
+def ca_analysis_long(filtereddf, parameters_dict,name=None):
     resultsdf = pd.DataFrame()
     result_dict={}
 
@@ -455,7 +474,105 @@ def ca_analysis_long(filtereddf, parameters_dict, name=None):
 
     if name is not None:
         resultsdf["group"]=name
+        resultsdf["group_parameter"]=resultsdf.group.str.cat(resultsdf.parameter, sep="_")
+        resultsdf.astype(dtype=object)
 
-    resultsdf.reset_index()
+    resultsdf.reset_index(inplace=True)
     print('Kinetics succesfully calculated!')
     return resultsdf
+
+def get_responders_long(inputdf, parameter, threshold=None, return_trace = False, trace_df = None):
+
+    subset = inputdf[inputdf["parameter"]==parameter].copy()
+
+    std = subset["value"].std()
+    mean = subset["value"].mean()
+
+
+    if threshold is None:
+        threshold = mean + std
+
+    print("Mean of parameter %s: %s" % (parameter, str(mean)))
+    print("Standard deviation: %s" % (str(std)))
+    print("The threshold used:", str(threshold))
+
+    mask = subset["value"] > threshold
+    subset["response"] = mask
+
+    nr_responders = subset.response.value_counts().to_list()[0]
+    nr_nonresponders = subset.response.value_counts().to_list()[1]
+    totalcells = len(subset)
+    print("Total number of cells", str(totalcells))
+    print("Number of responders:", str(nr_responders))
+    print("Number of non-responders:", str(nr_nonresponders))
+    print("Percentage of responders:", str(nr_responders/totalcells*100))
+
+
+
+
+    if return_trace == True and trace_df is not None:
+        responder = subset[subset["response"]==True]
+        non_responder = subset[subset["response"]==False]
+
+        responder_trace = trace_df.merge(responder[["measurement", "roi"]], how="inner", on=["measurement", "roi"]).sort_values(by=["timepoint","roi"])
+        non_responder_trace = trace_df.merge(non_responder[["measurement", "roi"]], how="inner", on=["measurement", "roi"]).sort_values(by=["timepoint","roi"])
+
+        print("Responder and non-responder traces returned")
+        print('\n')
+        return subset,responder_trace, non_responder_trace
+
+    elif return_trace == True and trace_df is None:
+        multi_return = False
+        print("Can only get traces if trace df is passed")
+        print('\n')
+        return subset
+
+    else:
+        print('\n')
+        return subset
+
+
+
+def filterdata_long_dask(inputdf, threshold=None, nr_of_partitions=None):
+    #this function was implemented with help by Jose A. Jimenez
+    #https://stackoverflow.com/questions/62957110/pandas-selecting-multiple-rows-based-on-column-pair/
+
+    import dask.dataframe as dd
+
+    initialmean = inputdf.loc[inputdf["timepoint"] == 0].mean().array[-1]
+    initialsd = inputdf.loc[inputdf["timepoint"] == 0].std().array[-1]
+
+    if threshold is None:
+        threshold = initialmean + initialsd
+        pre_activated_t0 = inputdf[(inputdf['timepoint'] == 0) & (inputdf['value'] > threshold)]
+    if threshold is not None:
+        pre_activated_t0 = inputdf[(inputdf['timepoint'] == 0) & (inputdf['value'] > threshold)]
+
+
+    pre_activated = inputdf.merge(pre_activated_t0[["measurement", "roi"]], how="inner", on=["measurement", "roi"])
+
+    if nr_of_partitions is None:
+        nr_of_partitions = 30
+
+    input_dd = dd.from_pandas(inputdf, npartitions=nr_of_partitions)
+    preactivated_dd = dd.from_pandas(pre_activated, npartitions=nr_of_partitions)
+
+    merger = dd.merge(input_dd,preactivated_dd, how="left", on=["timepoint", "measurement", "roi", "value"])
+    filtereddf = merger.compute()
+
+    filtereddf = filtereddf[pd.isna(filtereddf["group_y"])]
+    filtereddf.drop("group_y", axis=1, inplace=True)
+    filtereddf.columns = list(inputdf.columns)
+
+    length_input = len(inputdf[inputdf["timepoint"]==0])
+    length_filtered = len(filtereddf[filtereddf["timepoint"]==0])
+    delta = length_input - length_filtered
+
+    print('Initital Mean: ' + str(initialmean) + '. Initial SD: ' + str(initialsd))
+    print('Threshold: ' + str(threshold))
+    print('Dataframe was filtered')
+    print('Total cells: ' + str(length_input))
+    print(str(delta) + ' cells were removed')
+    print('\n')
+
+    return filtereddf, pre_activated
