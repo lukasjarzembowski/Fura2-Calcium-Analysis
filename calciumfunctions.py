@@ -522,7 +522,6 @@ def get_responders_long(inputdf, parameter, threshold=None, return_trace = False
         return subset,responder_trace, non_responder_trace
 
     elif return_trace == True and trace_df is None:
-        multi_return = False
         print("Can only get traces if trace df is passed")
         print('\n')
         return subset
