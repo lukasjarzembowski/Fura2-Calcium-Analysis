@@ -575,3 +575,30 @@ def filterdata_long_dask(inputdf, threshold=None, nr_of_partitions=None):
     print('\n')
 
     return filtereddf, pre_activated
+
+
+def total_means_long(traces_list,kinetics_list):
+
+    combined_traces = pd.DataFrame()
+    combined_kinetics = pd.DataFrame()
+
+    for df in kinetics_list:
+        means = df.groupby(["parameter","measurement","group","group_parameter"]).mean().drop(["roi"],axis=1).reset_index()
+        stds = df.groupby(["parameter","measurement","group","group_parameter"]).std().drop(["roi"],axis=1).reset_index()
+        means["statistic"]="mean"
+        stds["statistic"] = "sd"
+        merged_kinetics = pd.merge(means, stds, how="outer")
+        combined_kinetics = pd.concat([combined_kinetics,merged_kinetics],axis=0)
+
+    for df in traces_list:
+        meantrace = df.groupby(["measurement","group","timepoint"]).mean().reset_index()
+        meantrace["statistic"]="mean"
+        sdtrace = df.groupby(["measurement","group","timepoint"]).std().reset_index()
+        sdtrace["statistic"]="sd"
+        merged_traces = pd.merge(meantrace, sdtrace, how="outer")
+        combined_traces = pd.concat([combined_traces,merged_traces],axis=0)
+
+        combined_traces.reset_index()
+        combined_kinetics.reset_index()
+
+    return combined_traces, combined_kinetics
