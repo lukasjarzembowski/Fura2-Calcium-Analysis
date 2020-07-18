@@ -357,7 +357,7 @@ def intensity_dataframe_long(timelapse_image,mask,measurement,name):
     return intensity_df
 
 def filterdata_long(inputdf, threshold=None):
-    #this function was implemented with help by Jose A. Jimenez
+    #this function was implemented with help of Jose A. Jimenez
     #https://stackoverflow.com/questions/62957110/pandas-selecting-multiple-rows-based-on-column-pair/
     initialmean = inputdf.loc[inputdf["timepoint"] == 0].mean().array[-1]
     initialsd = inputdf.loc[inputdf["timepoint"] == 0].std().array[-1]
@@ -534,7 +534,7 @@ def get_responders_long(inputdf, parameter, threshold=None, return_trace = False
 
 
 def filterdata_long_dask(inputdf, threshold=None, nr_of_partitions=None):
-    #this function was implemented with help by Jose A. Jimenez
+    #this function was implemented with help of Jose A. Jimenez
     #https://stackoverflow.com/questions/62957110/pandas-selecting-multiple-rows-based-on-column-pair/
 
     import dask.dataframe as dd
