@@ -598,14 +598,14 @@ def total_means_long(traces_list,kinetics_list,output_total=False):
         merged_traces = pd.merge(meantrace, sdtrace, how="outer")
         combined_traces = pd.concat([combined_traces,merged_traces],axis=0)
 
-        combined_traces.reset_index()
-        combined_kinetics.reset_index()
+        combined_traces.reset_index(drop=True)
+        combined_kinetics.reset_index(drop=True)
 
     if output_total==False:
           return combined_traces, combined_kinetics
 
     if output_total == True:
-        total_traces = pd.concat(traces_list, axis=0).reset_index()
-        total_kinetics = pd.concat(kinetics_list,axis=0).reset_index()
+        total_traces = pd.concat(traces_list, axis=0).reset_index(drop=True)
+        total_kinetics = pd.concat(kinetics_list,axis=0).reset_index(drop=True)
 
         return combined_traces, combined_kinetics,total_traces,total_kinetics
